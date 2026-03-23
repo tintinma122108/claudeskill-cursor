@@ -79,12 +79,21 @@ function getAllSourceFiles(dir, results = []) {
 
 function findComponentFile(name, dir) {
   const files = getAllSourceFiles(dir)
+  const re = new RegExp(`(function|const)\\s+${name}[\\s(<]`)
   // 优先匹配同名文件（如 Doodle.jsx）
   const exact = files.find(f => path.basename(f, path.extname(f)) === name)
-  if (exact) return exact
-  // 回退：在文件内容里搜索组件定义（处理多组件合并在一个文件的情况）
-  const re = new RegExp(`(function|const)\\s+${name}[\\s(<]`)
-  return files.find(f => re.test(fs.readFileSync(f, 'utf8'))) ?? null
+  if (exact) {
+    const lines = fs.readFileSync(exact, 'utf8').split('\n')
+    const lineNumber = lines.findIndex(l => re.test(l)) + 1 || 1
+    return { file: exact, lineNumber }
+  }
+  // 回退：在文件内容里搜索组件定义
+  for (const f of files) {
+    const lines = fs.readFileSync(f, 'utf8').split('\n')
+    const idx = lines.findIndex(l => re.test(l))
+    if (idx !== -1) return { file: f, lineNumber: idx + 1 }
+  }
+  return null
 }
 
 const findComponentPlugin = {
@@ -93,9 +102,12 @@ const findComponentPlugin = {
     server.middlewares.use('/__find-component', (req, res) => {
       const name = new URL(req.url, 'http://localhost').searchParams.get('name')
       const srcDir = path.join(process.cwd(), 'src')
-      const found = name ? findComponentFile(name, srcDir) : null
+      const result = name ? findComponentFile(name, srcDir) : null
+      const absolutePath = result?.file ?? null
+      const lineNumber = result?.lineNumber ?? 1
+      const relativePath = absolutePath ? path.relative(process.cwd(), absolutePath) : null
       res.setHeader('Content-Type', 'application/json')
-      res.end(JSON.stringify({ absolutePath: found ?? null }))
+      res.end(JSON.stringify({ absolutePath, lineNumber, relativePath }))
     })
   },
 }
@@ -126,9 +138,10 @@ import { Inspector } from 'react-dev-inspector'
   <Inspector
     onClickElement={async ({ name }) => {
       const res = await fetch(`/__find-component?name=${name}`)
-      const { absolutePath } = await res.json()
+      const { absolutePath, lineNumber, relativePath } = await res.json()
       if (absolutePath) {
-        window.open(`cursor://file/${absolutePath}`)
+        window.open(`cursor://file/${absolutePath}:${lineNumber}`)
+        navigator.clipboard.writeText(`${relativePath}:${lineNumber}`)
       } else {
         console.warn(`[inspector] 找不到组件文件: ${name}`)
       }
