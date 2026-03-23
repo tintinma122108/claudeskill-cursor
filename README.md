@@ -1,9 +1,11 @@
 # Claude Skills/cursor小板正
 
-A collection of reusable Claude Code skills for frontend developers and designers.
 根据前端实现来回切回cursor描述修改的对象及修改的要点，达咩！
 打开cursor，看见页面，哪里想改点哪里，让你的页面还原板板正正的。
 安装了这个skill，点击任何想要修改的部分，直接带回到cursor。
+
+ Bridge the gap between design and code — click UI components in the browser, land in      
+  Cursor instantly.   
 
 ## What is a Claude Skill?
 
